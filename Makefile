@@ -3,17 +3,25 @@ ifneq ("$(wildcard Makefile.local)", "")
 	include Makefile.local
 endif
 
+MAC_OSX_VERSION := $(1)
 MAC_OSX_10_7_LION_INSTALLER ?= iso/OS\ X\ Lion/Install\ OS\ X\ Lion.app
 MAC_OSX_10_8_MOUNTAIN_LION_INSTALLER ?= iso/OS\ X\ Mountain\ Lion/Install\ OS\ X\ Mountain\ lion.app
 MAC_OSX_10_9_MAVERICKS_INSTALLER ?= iso/OS\ X\ Mavericks/Install\ OS\ X\ Mavericks.app
 MAC_OSX_10_10_YOSEMITE_INSTALLER ?= iso/Install\ OS\ X\ Yosemite.app
 MAC_OSX_10_11_EL_CAPITAN_INSTALLER ?= iso/Install\ OS\ X\ El\ Capitan.app
 
-MAC_OSX_10_7_LION_BOOT_DMG ?= $(notdir $(firstword $(wildcard dmg/OSX_InstallESD_10.7*) ))
-MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG ?= $(notdir $(firstword $(wildcard dmg/OSX_InstallESD_10.8*) ))
-MAC_OSX_10_9_MAVERICKS_BOOT_DMG ?= $(notdir $(firstword $(wildcard dmg/OSX_InstallESD_10.9*) ))
-MAC_OSX_10_10_YOSEMITE_BOOT_DMG ?= $(notdir $(firstword $(wildcard dmg/OSX_InstallESD_10.10*) ))
-MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG ?= $(notdir $(firstword $(wildcard dmg/OSX_InstallESD_10.11*) ))
+MAC_OSX_10_7_LION_BOOT_DMG ?= OSX_InstallESD_10.7.5_11G63.dmg
+MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG ?= OSX_InstallESD_10.8.5_12F45.dmg
+MAC_OSX_10_9_MAVERICKS_BOOT_DMG ?= OSX_InstallESD_10.9_13A603.dmg
+MAC_OSX_10_10_YOSEMITE_BOOT_DMG ?= OSX_InstallESD_10.10.5_14F27.dmg
+MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG ?= OSX_InstallESD_10.11_15A284.dmg
+# These go empty if you don't have them already on disc, which is bad.
+# Maybe you have them already, but a bare run of 'make parallels/osx1011-desktop' explodes without making the dmg from application.
+#MAC_OSX_10_7_LION_BOOT_DMG ?= $(notdir $(firstword $(wildcard dmg/OSX_InstallESD_10.7*) ))
+#MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG ?= $(notdir $(firstword $(wildcard dmg/OSX_InstallESD_10.8*) ))
+#MAC_OSX_10_9_MAVERICKS_BOOT_DMG ?= $(notdir $(firstword $(wildcard dmg/OSX_InstallESD_10.9*) ))
+#MAC_OSX_10_10_YOSEMITE_BOOT_DMG ?= $(notdir $(firstword $(wildcard dmg/OSX_InstallESD_10.10*) ))
+#MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG ?= $(notdir $(firstword $(wildcard dmg/OSX_InstallESD_10.11*) ))
 
 # Possible values for CM: (nocm | chef | chefdk | salt | puppet)
 CM ?= nocm
@@ -41,7 +49,6 @@ PACKER_VARS_LIST = 'cm=$(CM)' 'update=$(UPDATE)' 'install_xcode_cli_tools=$(INST
 ifdef CM_VERSION
 	PACKER_VARS_LIST += 'cm_version=$(CM_VERSION)'
 endif
-
 PACKER_VARS := $(addprefix -var , $(PACKER_VARS_LIST))
 
 ifdef PACKER_DEBUG
@@ -49,7 +56,7 @@ ifdef PACKER_DEBUG
 else
 	PACKER := packer
 endif
-BUILDER_TYPES := vmware virtualbox parallels
+BUILDER_TYPES ?= vmware virtualbox parallels
 VMWARE_BOX_DIR := box/vmware
 VIRTUALBOX_BOX_DIR := box/virtualbox
 PARALLELS_BOX_DIR := box/parallels
@@ -148,155 +155,215 @@ dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG): $(MAC_OSX_10_11_EL_CAPITAN_INSTALLER)
 	mkdir -p dmg
 	sudo prepare_iso/prepare_iso.sh $(MAC_OSX_10_11_EL_CAPITAN_INSTALLER) dmg
 
-$(VMWARE_BOX_DIR)/osx1011$(BOX_SUFFIX): osx1011.json $(SOURCES) dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
+$(VMWARE_BOX_DIR)/osx1011$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1011.json
+
+$(VMWARE_BOX_DIR)/osx1011$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
 	rm -rf $(VMWARE_OUTPUT)
 	mkdir -p $(VMWARE_BOX_DIR)
-	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
 
-$(VMWARE_BOX_DIR)/osx1011-desktop$(BOX_SUFFIX): osx1011-desktop.json $(SOURCES) tpl/vagrantfile-osx1011-desktop.tpl dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
+$(VMWARE_BOX_DIR)/osx1011-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1011-desktop.json
+
+$(VMWARE_BOX_DIR)/osx1011-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx1011-desktop.tpl dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
 	rm -rf $(VMWARE_OUTPUT)
 	mkdir -p $(VMWARE_BOX_DIR)
-	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
 
-$(VMWARE_BOX_DIR)/osx1010$(BOX_SUFFIX): osx1010.json $(SOURCES) dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
+$(VMWARE_BOX_DIR)/osx1010$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1010.json
+
+$(VMWARE_BOX_DIR)/osx1010$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
 	rm -rf $(VMWARE_OUTPUT)
 	mkdir -p $(VMWARE_BOX_DIR)
-	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
 
-$(VMWARE_BOX_DIR)/osx1010-desktop$(BOX_SUFFIX): osx1010-desktop.json $(SOURCES) tpl/vagrantfile-osx1010-desktop.tpl dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
+$(VMWARE_BOX_DIR)/osx1010-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1010-desktop.json
+
+$(VMWARE_BOX_DIR)/osx1010-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx1010-desktop.tpl dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
 	rm -rf $(VMWARE_OUTPUT)
 	mkdir -p $(VMWARE_BOX_DIR)
-	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
 
-$(VMWARE_BOX_DIR)/osx109$(BOX_SUFFIX): osx109.json $(SOURCES) dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
+$(VMWARE_BOX_DIR)/osx109$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx109.json
+
+$(VMWARE_BOX_DIR)/osx109$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
 	rm -rf $(VMWARE_OUTPUT)
 	mkdir -p $(VMWARE_BOX_DIR)
-	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
 
-$(VMWARE_BOX_DIR)/osx109-desktop$(BOX_SUFFIX): osx109-desktop.json $(SOURCES) tpl/vagrantfile-osx109-desktop.tpl dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
+$(VMWARE_BOX_DIR)/osx109-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx109-desktop.json
+
+$(VMWARE_BOX_DIR)/osx109-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx109-desktop.tpl dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
 	rm -rf $(VMWARE_OUTPUT)
 	mkdir -p $(VMWARE_BOX_DIR)
-	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
 
-$(VMWARE_BOX_DIR)/osx108$(BOX_SUFFIX): osx108.json $(SOURCES) dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
+$(VMWARE_BOX_DIR)/osx108$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx108.json
+
+$(VMWARE_BOX_DIR)/osx108$(BOX_SUFFIX): osx.json $PACKER_DEFAULT_VARFILE $(SOURCES) dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
 	rm -rf $(VMWARE_OUTPUT)
 	mkdir -p $(VMWARE_BOX_DIR)
-	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
 
-$(VMWARE_BOX_DIR)/osx108-desktop$(BOX_SUFFIX): osx108-desktop.json $(SOURCES) tpl/vagrantfile-osx108-desktop.tpl dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
+$(VMWARE_BOX_DIR)/osx108-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx108-desktop.json
+
+$(VMWARE_BOX_DIR)/osx108-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx108-desktop.tpl dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
 	rm -rf $(VMWARE_OUTPUT)
 	mkdir -p $(VMWARE_BOX_DIR)
-	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
 
-$(VMWARE_BOX_DIR)/osx107$(BOX_SUFFIX): osx107.json $(SOURCES) dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
+$(VMWARE_BOX_DIR)/osx107$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx107.json
+
+$(VMWARE_BOX_DIR)/osx107$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
 	rm -rf $(VMWARE_OUTPUT)
 	mkdir -p $(VMWARE_BOX_DIR)
-	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
 
-$(VMWARE_BOX_DIR)/osx107-desktop$(BOX_SUFFIX): osx107-desktop.json $(SOURCES) tpl/vagrantfile-osx107-desktop.tpl dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
+$(VMWARE_BOX_DIR)/osx107-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx107-desktop.json
+
+$(VMWARE_BOX_DIR)/osx107-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx107-desktop.tpl dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
 	rm -rf $(VMWARE_OUTPUT)
 	mkdir -p $(VMWARE_BOX_DIR)
-	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
 
-$(VIRTUALBOX_BOX_DIR)/osx1011$(BOX_SUFFIX): osx1011.json $(SOURCES) dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
+$(VIRTUALBOX_BOX_DIR)/osx1011$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1011.json
+
+$(VIRTUALBOX_BOX_DIR)/osx1011$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
 	rm -rf $(VIRTUALBOX_OUTPUT)
 	mkdir -p $(VIRTUALBOX_BOX_DIR)
-	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
 
-$(VIRTUALBOX_BOX_DIR)/osx1011-desktop$(BOX_SUFFIX): osx1011-desktop.json $(SOURCES) tpl/vagrantfile-osx1011-desktop.tpl dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
+$(VIRTUALBOX_BOX_DIR)/osx1011-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1011-desktop.json
+
+$(VIRTUALBOX_BOX_DIR)/osx1011-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx1011-desktop.tpl dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
 	rm -rf $(VIRTUALBOX_OUTPUT)
 	mkdir -p $(VIRTUALBOX_BOX_DIR)
-	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
 
-$(VIRTUALBOX_BOX_DIR)/osx1010$(BOX_SUFFIX): osx1010.json $(SOURCES) dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
+$(VIRTUALBOX_BOX_DIR)/osx1010$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1010.json
+
+$(VIRTUALBOX_BOX_DIR)/osx1010$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
 	rm -rf $(VIRTUALBOX_OUTPUT)
 	mkdir -p $(VIRTUALBOX_BOX_DIR)
-	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
 
-$(VIRTUALBOX_BOX_DIR)/osx1010-desktop$(BOX_SUFFIX): osx1010-desktop.json $(SOURCES) tpl/vagrantfile-osx1010-desktop.tpl dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
+$(VIRTUALBOX_BOX_DIR)/osx1010-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1010-desktop.json
+
+$(VIRTUALBOX_BOX_DIR)/osx1010-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx1010-desktop.tpl dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
 	rm -rf $(VIRTUALBOX_OUTPUT)
 	mkdir -p $(VIRTUALBOX_BOX_DIR)
-	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
 
-$(VIRTUALBOX_BOX_DIR)/osx109$(BOX_SUFFIX): osx109.json $(SOURCES) dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
+$(VIRTUALBOX_BOX_DIR)/osx109$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx109.json
+
+$(VIRTUALBOX_BOX_DIR)/osx109$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
 	rm -rf $(VIRTUALBOX_OUTPUT)
 	mkdir -p $(VIRTUALBOX_BOX_DIR)
-	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
 
-$(VIRTUALBOX_BOX_DIR)/osx109-desktop$(BOX_SUFFIX): osx109-desktop.json $(SOURCES) tpl/vagrantfile-osx109-desktop.tpl dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
+$(VIRTUALBOX_BOX_DIR)/osx109-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx109-desktop.json
+
+$(VIRTUALBOX_BOX_DIR)/osx109-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx109-desktop.tpl dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
 	rm -rf $(VIRTUALBOX_OUTPUT)
 	mkdir -p $(VIRTUALBOX_BOX_DIR)
-	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
 
-$(VIRTUALBOX_BOX_DIR)/osx108$(BOX_SUFFIX): osx108.json $(SOURCES) dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
+$(VIRTUALBOX_BOX_DIR)/osx108$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx108.json
+
+$(VIRTUALBOX_BOX_DIR)/osx108$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
 	rm -rf $(VIRTUALBOX_OUTPUT)
 	mkdir -p $(VIRTUALBOX_BOX_DIR)
-	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
 
-$(VIRTUALBOX_BOX_DIR)/osx108-desktop$(BOX_SUFFIX): osx108-desktop.json $(SOURCES) tpl/vagrantfile-osx108-desktop.tpl dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
+$(VIRTUALBOX_BOX_DIR)/osx108-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx108-desktop.json
+
+$(VIRTUALBOX_BOX_DIR)/osx108-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx108-desktop.tpl dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
 	rm -rf $(VIRTUALBOX_OUTPUT)
 	mkdir -p $(VIRTUALBOX_BOX_DIR)
-	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
 
-$(VIRTUALBOX_BOX_DIR)/osx107$(BOX_SUFFIX): osx107.json $(SOURCES) dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
+$(VIRTUALBOX_BOX_DIR)/osx107$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx107.json
+
+$(VIRTUALBOX_BOX_DIR)/osx107$(BOX_SUFFIX): osx.json osx107.json $(SOURCES) dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
 	rm -rf $(VIRTUALBOX_OUTPUT)
 	mkdir -p $(VIRTUALBOX_BOX_DIR)
-	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
 
-$(VIRTUALBOX_BOX_DIR)/osx107-desktop$(BOX_SUFFIX): osx107-desktop.json $(SOURCES) tpl/vagrantfile-osx107-desktop.tpl dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
+$(VIRTUALBOX_BOX_DIR)/osx107-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx107-desktop.json
+
+$(VIRTUALBOX_BOX_DIR)/osx107-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx107-desktop.tpl dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
 	rm -rf $(VIRTUALBOX_OUTPUT)
 	mkdir -p $(VIRTUALBOX_BOX_DIR)
-	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VIRTUALBOX_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
 
-$(PARALLELS_BOX_DIR)/osx1011$(BOX_SUFFIX): osx1011.json $(SOURCES) dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
+$(PARALLELS_BOX_DIR)/osx1011$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1011.json
+
+$(PARALLELS_BOX_DIR)/osx1011$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
 	rm -rf $(PARALLELS_OUTPUT)
 	mkdir -p $(PARALLELS_BOX_DIR)
-	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
+	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
 
-$(PARALLELS_BOX_DIR)/osx1011-desktop$(BOX_SUFFIX): osx1011-desktop.json $(SOURCES) tpl/vagrantfile-osx1011-desktop.tpl dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
+$(PARALLELS_BOX_DIR)/osx1011-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1011-desktop.json
+
+$(PARALLELS_BOX_DIR)/osx1011-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx1011-desktop.tpl dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)
 	rm -rf $(PARALLELS_OUTPUT)
 	mkdir -p $(PARALLELS_BOX_DIR)
-	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
+	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_11_EL_CAPITAN_BOOT_DMG)" $<
 
-$(PARALLELS_BOX_DIR)/osx1010$(BOX_SUFFIX): osx1010.json $(SOURCES) dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
+$(PARALLELS_BOX_DIR)/osx1010$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1010.json
+
+$(PARALLELS_BOX_DIR)/osx1010$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
 	rm -rf $(PARALLELS_OUTPUT)
 	mkdir -p $(PARALLELS_BOX_DIR)
-	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
+	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
 
-$(PARALLELS_BOX_DIR)/osx1010-desktop$(BOX_SUFFIX): osx1010-desktop.json $(SOURCES) tpl/vagrantfile-osx1010-desktop.tpl dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
+$(PARALLELS_BOX_DIR)/osx1010-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx1010-desktop.json
+
+$(PARALLELS_BOX_DIR)/osx1010-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx1010-desktop.tpl dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)
 	rm -rf $(PARALLELS_OUTPUT)
 	mkdir -p $(PARALLELS_BOX_DIR)
-	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
+	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_10_YOSEMITE_BOOT_DMG)" $<
 
-$(PARALLELS_BOX_DIR)/osx109$(BOX_SUFFIX): osx109.json $(SOURCES) dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
+$(PARALLELS_BOX_DIR)/osx109$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx109.json
+
+$(PARALLELS_BOX_DIR)/osx109$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
 	rm -rf $(PARALLELS_OUTPUT)
 	mkdir -p $(PARALLELS_BOX_DIR)
-	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
+	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
 
-$(PARALLELS_BOX_DIR)/osx109-desktop$(BOX_SUFFIX): osx109-desktop.json $(SOURCES) tpl/vagrantfile-osx109-desktop.tpl dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
+$(PARALLELS_BOX_DIR)/osx109-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx109-desktop.json
+
+$(PARALLELS_BOX_DIR)/osx109-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx109-desktop.tpl dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)
 	rm -rf $(PARALLELS_OUTPUT)
 	mkdir -p $(PARALLELS_BOX_DIR)
-	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
+	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_9_MAVERICKS_BOOT_DMG)" $<
 
-$(PARALLELS_BOX_DIR)/osx108$(BOX_SUFFIX): osx108.json $(SOURCES) dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
+$(PARALLELS_BOX_DIR)/osx108$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx108.json
+
+$(PARALLELS_BOX_DIR)/osx108$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
 	rm -rf $(PARALLELS_OUTPUT)
 	mkdir -p $(PARALLELS_BOX_DIR)
-	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
 
-$(PARALLELS_BOX_DIR)/osx108-desktop$(BOX_SUFFIX): osx108-desktop.json $(SOURCES) tpl/vagrantfile-osx108-desktop.tpl dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
+$(PARALLELS_BOX_DIR)/osx108-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx108-desktop.json
+
+$(PARALLELS_BOX_DIR)/osx108-desktop$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) tpl/vagrantfile-osx108-desktop.tpl dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)
 	rm -rf $(PARALLELS_OUTPUT)
 	mkdir -p $(PARALELLS_BOX_DIR)
-	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_8_MOUNTAIN_LION_BOOT_DMG)" $<
 
-$(PARALLELS_BOX_DIR)/osx107$(BOX_SUFFIX): osx107.json $(SOURCES) dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
+$(PARALLELS_BOX_DIR)/osx107$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx107.json
+
+$(PARALLELS_BOX_DIR)/osx107$(BOX_SUFFIX): osx.json $(PACKER_DEFAULT_VARFILE) $(SOURCES) dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
 	rm -rf $(PARALLELS_OUTPUT)
 	mkdir -p $(PARALLELS_BOX_DIR)
-	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(PARALLELS_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
 
-$(PARLLELS_BOX_DIR)/osx107-desktop$(BOX_SUFFIX): osx107-desktop.json $(SOURCES) tpl/vagrantfile-osx107-desktop.tpl dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
+$(PARLLELS_BOX_DIR)/osx107-desktop$(BOX_SUFFIX): PACKER_DEFAULT_VARFILE = osx107-desktop.json
+
+$(PARLLELS_BOX_DIR)/osx107-desktop$(BOX_SUFFIX): osx.json osx107-desktop.json $(SOURCES) tpl/vagrantfile-osx107-desktop.tpl dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)
 	rm -rf $(PARALLELS_OUTPUT)
 	mkdir -p $(PARALLELS_BOX_DIR)
-	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
+	$(PACKER) build -only=$(VMWARE_BUILDER) $(PACKER_VARS) -var-file $(PACKER_DEFAULT_VARFILE) -var "iso_url=dmg/$(MAC_OSX_10_7_LION_BOOT_DMG)" $<
 
 list:
 	@echo "Prepend 'vmware/', 'virtualbox/', or 'parallels/' to build a particular target:"
